@@ -5,6 +5,8 @@ import asyncio
 import aiohttp
 import json
 from random import random
+import urllib.parse
+import requests
 
 from utils import tile2latlon, latlon2tile
 
@@ -18,6 +20,7 @@ def parse_args():
     parser.add_argument('--out-dir', required=True, type=str, help='Folder to output to')
     parser.add_argument('--max-connections', required=False, type=int, default=8, help='Max concurrent connections')
     parser.add_argument('--retries', required=False, type=int, default=10, help='Retries per tile')
+    parser.add_argument('--base_url', required=False, type=str, default=10, help='Base URL to use')
     opts = parser.parse_args()
 
     with open(opts.poly, 'r') as geojf:
@@ -43,10 +46,14 @@ def tile_idxs_in_poly(poly : shapely.geometry.Polygon, zoom : int):
                 continue
 
 
-async def fetch_and_save(session : aiohttp.ClientSession, url : str, retries : int, filepath : str, **kwargs):
+async def fetch_and_save(session : aiohttp.ClientSession, base_url : str, url : str, retries : int, filepath : str, **kwargs):
     wait_for = BASE_WAIT
     for retry in range(retries):
-        response = await session.get(url, params=kwargs)
+        if not base_url:
+            response = await session.get(url, params=kwargs)
+        else:
+            response = await session.get(base_url+urllib.parse.quote(url), params=kwargs)
+
         try:
             response.raise_for_status()
             img = await response.read()
@@ -71,7 +78,7 @@ async def main():
     for feat in opts.poly['features']:
         poly = shapely.geometry.shape(feat['geometry'])
 
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(verify_ssl=False)) as session:
             tasks = []
             urls = []
             for x, y in tile_idxs_in_poly(poly, opts.zoom):
@@ -80,7 +87,7 @@ async def main():
                     filepath = os.path.join(opts.out_dir, '{}_{}_{}.png'.format(opts.zoom, x, y))
                     if os.path.isfile(filepath):
                         continue
-                    ret = fetch_and_save(session, url, opts.retries, filepath)
+                    ret = fetch_and_save(session, opts.base_url, url, opts.retries, filepath)
                     urls.append(url)
                     tasks.append(asyncio.ensure_future(ret))
             
