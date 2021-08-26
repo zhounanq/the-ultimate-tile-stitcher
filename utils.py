@@ -51,4 +51,3 @@ def webmercator2latlon(wx, wy):
     lat = wy / 20037508.34 * 180
     lat = 180 / math.pi * (2 * math.atan(math.exp(lat * math.pi / 180)) - math.pi / 2)
     return (lat, lon)
-

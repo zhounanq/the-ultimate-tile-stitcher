@@ -15,40 +15,33 @@ def parse_args():
 
 def main():
     opts = parse_args()
+
     search_path = os.path.join(opts.dir, '*_*_*.png')
-    
     filepaths = glob.glob(search_path)
 
-    def xy(filepath):
-        base = os.path.basename(filepath)
-        z, x, y = filepath.split('_')
-        y = os.path.splitext(y)[0]
-        return int(x), int(y)
-
-    yx = lambda filepath : xy(filepath)[::-1]
-
-    filepaths = sorted(filepaths, key=xy)
-    
     if len(filepaths) == 0:
         print('No files found')
         raise SystemExit
 
-    tile_w, tile_h = Image.open(filepaths[0]).size
+    def xy(filepath):
+        base = os.path.splitext(os.path.basename(filepath))[0]
+        z, x, y = base.split('_')
+        return int(x), int(y)
 
     xys = list(map(xy, filepaths))
-    x_0, y_0 = min(map(lambda x_y : x_y[0], xys)), min(map(lambda x_y: x_y[1], xys))
-    x_1, y_1 = max(map(lambda x_y : x_y[0], xys)), max(map(lambda x_y: x_y[1], xys))
+    x_min, y_min = min(map(lambda x_y: x_y[0], xys)), min(map(lambda x_y: x_y[1], xys))
+    x_max, y_max = max(map(lambda x_y: x_y[0], xys)), max(map(lambda x_y: x_y[1], xys))
+    n_x, n_y = x_max - x_min, y_max - y_min
 
-    n_x, n_y = x_1 - x_0, y_1 - y_0
 
+    tile_w, tile_h = Image.open(filepaths[0]).size
     out_w, out_h = n_x * tile_w, n_y * tile_h
-
     print('output image size:', out_w, out_h, 'tile size:', tile_w, tile_h)
 
     out_img = Image.new('RGBA', (out_w, out_h), (0, 0, 255, 0))
     for filepath in tqdm.tqdm(filepaths):
         x, y = xy(filepath)
-        x, y = x - x_0, y - y_0
+        x, y = x - x_min, y - y_min
         tile = Image.open(filepath)
         out_img.paste(tile, box=(x * tile_w, y * tile_h, (x + 1) * tile_w, (y + 1) * tile_h))
 
