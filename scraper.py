@@ -10,14 +10,16 @@ from utils import tile2latlon, latlon2tile
 
 BASE_WAIT = 0.5
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='scrape tiles from a tiled map service')
     parser.add_argument('--poly', required=True, type=str, help='path to geojson containnig bounding polygon(s) to scrape within in lat lon')
     parser.add_argument('--zoom', required=True, type=int, help='zoom level to scrape at')
     parser.add_argument('--url', required=True, type=str, help='Map service url in http://...{z}/{x}/{y}... format')
     parser.add_argument('--out-dir', required=True, type=str, help='Folder to output to')
-    parser.add_argument('--max-connections', required=False, type=int, default=8, help='Max concurrent connections')
+    parser.add_argument('--max-connections', required=False, type=int, default=1, help='Max concurrent connections')
     parser.add_argument('--retries', required=False, type=int, default=10, help='Retries per tile')
+    parser.add_argument('--base_url', required=False, type=str, default='', help='Base URL to use')
     opts = parser.parse_args()
 
     with open(opts.poly, 'r') as geojf:
@@ -29,21 +31,23 @@ def parse_args():
 # this is inefficient and slow, but also good enough
 def tile_idxs_in_poly(poly : shapely.geometry.Polygon, zoom : int):
     min_lon, min_lat, max_lon, max_lat = poly.bounds
-    (min_x, max_y), (max_x, min_y) = latlon2tile(min_lat, min_lon, zoom), latlon2tile(max_lat, max_lon, zoom)
-    for x in range(int(min_x), int(max_x) + 1):
-        for y in range(int(min_y) , int(max_y) + 1):
+    # (min_x, max_y), (max_x, min_y) = latlon2tile(min_lat, min_lon, zoom), latlon2tile(max_lat, max_lon, zoom)
+    (min_x, min_y), (max_x, max_y) = latlon2tile(max_lat, min_lon, zoom), latlon2tile(min_lat, max_lon, zoom)
+    for x in range(int(min_x), int(max_x) + 2): # +1 for int(), +1 for range()
+        for y in range(int(min_y), int(max_y) + 2):
             nw_pt = tile2latlon(x, y, zoom)[::-1] # poly is defined in geojson form
             ne_pt = tile2latlon(x + 1, y, zoom)[::-1] # poly is defined in geojson form
             sw_pt = tile2latlon(x, y + 1, zoom)[::-1] # poly is defined in geojson form
             se_pt = tile2latlon(x + 1, y + 1, zoom)[::-1] # poly is defined in geojson form
-            if any(map(lambda pt : shapely.geometry.Point(pt).within(poly), 
-                (nw_pt, ne_pt, sw_pt, se_pt))):
+            # if any(map(lambda pt : shapely.geometry.Point(pt).within(poly),
+            if any(map(lambda pt: poly.contains(shapely.geometry.Point(pt)),
+                       (nw_pt, ne_pt, sw_pt, se_pt))):
                 yield x, y
             else:
                 continue
 
 
-async def fetch_and_save(session : aiohttp.ClientSession, url : str, retries : int, filepath : str, **kwargs):
+async def fetch_and_save(session: aiohttp.ClientSession, base_url: str, url: str, retries: int, filepath: str, **kwargs):
     wait_for = BASE_WAIT
     for retry in range(retries):
         response = await session.get(url, params=kwargs)
@@ -58,6 +62,7 @@ async def fetch_and_save(session : aiohttp.ClientSession, url : str, retries : i
             await asyncio.sleep(wait_for)
             wait_for = wait_for * (1.0 * random() + 1.0)
     return False
+
 
 async def main():
     failed_urls = []

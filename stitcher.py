@@ -4,12 +4,14 @@ import argparse
 import glob
 import tqdm
 
+
 def parse_args():
     parser = argparse.ArgumentParser(description='stitch tiles scraped by scraper.py')
     parser.add_argument('--dir', required=True, type=str, help='directory containing times, saved in {zoom}_{X}_{Y} form')
     parser.add_argument('--out-file', required=True, type=str, help='output filename')
     opts = parser.parse_args()
     return opts
+
 
 def main():
     opts = parse_args()
@@ -52,6 +54,7 @@ def main():
 
     print('Saving')
     out_img.save(opts.out_file)
+
 
 if __name__ == '__main__':
     main()
