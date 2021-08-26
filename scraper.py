@@ -85,7 +85,7 @@ async def main():
                     filepath = os.path.join(opts.out_dir, '{}_{}_{}.png'.format(opts.zoom, x, y))
                     if os.path.isfile(filepath):
                         continue
-                    ret = fetch_and_save(session, url, opts.retries, filepath)
+                    ret = fetch_and_save(session, url, opts.base_url, opts.retries, filepath)
                     urls.append(url)
                     tasks.append(asyncio.ensure_future(ret))
             
